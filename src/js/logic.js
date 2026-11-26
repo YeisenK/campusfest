@@ -30,6 +30,14 @@ function pad(number) {
   return String(number).padStart(2, '0');
 }
 
+function normalizeText(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 // ---------- Cupos ----------
 
 export function spotsLeft(event) {
@@ -53,6 +61,10 @@ export function spotsLabel(event) {
 // ---------- Precio ----------
 
 export function formatPrice(price) {
+  if (Number(price) === 0) {
+    return 'Gratis';
+  }
+
   return `$${price}`;
 }
 
@@ -72,11 +84,15 @@ export function daysUntil(dateStr, todayStr) {
   const eventDate = toDate(dateStr);
   const today = toDate(todayStr);
 
-  return (eventDate.getTime() - today.getTime()) / MS_PER_DAY;
+  return Math.round((eventDate.getTime() - today.getTime()) / MS_PER_DAY) || 0;
 }
 
 export function countdownLabel(dateStr, todayStr) {
   const days = daysUntil(dateStr, todayStr);
+
+  if (days < 0) {
+    return 'Finalizado';
+  }
 
   if (days === 0) {
     return 'Hoy';
@@ -86,40 +102,36 @@ export function countdownLabel(dateStr, todayStr) {
     return 'Mañana';
   }
 
-  if (days === -1) {
-    return 'Ayer';
-  }
-
-  if (days < 0) {
-    return `Hace ${Math.abs(days)} días`;
-  }
-
   return `Faltan ${days} días`;
 }
 
 export function sortByDate(events) {
   return [...events].sort((a, b) => {
-    return toDate(a.date).getTime() - toDate(b.date).getTime();
+    return (
+      toDate(a.date).getTime() - toDate(b.date).getTime() ||
+      String(a.time ?? '').localeCompare(String(b.time ?? ''))
+    );
   });
 }
 
 // ---------- Búsqueda y filtros ----------
 
 export function matchesSearch(event, query) {
-  const normalizedQuery = String(query ?? '').trim().toLowerCase();
+  const normalizedQuery = normalizeText(query);
 
   if (!normalizedQuery) {
     return true;
   }
 
-  const text = [
-    event.title,
-    event.venue,
-    event.categoryLabel,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+  const text = normalizeText(
+    [
+      event.title,
+      event.venue,
+      event.categoryLabel,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
 
   return text.includes(normalizedQuery);
 }

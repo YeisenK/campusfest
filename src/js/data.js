@@ -239,8 +239,11 @@ export const ALL_EVENTS = RAW_EVENTS.map((event) => {
   };
 });
 
+// Todos los eventos de la cartelera (incluye cierre/posada fuera de la semana).
+export const EVENTS = ALL_EVENTS;
+
 // Eventos correspondientes exclusivamente a la semana.
-export const EVENTS = ALL_EVENTS.filter((event) =>
+export const IN_WEEK_EVENTS = ALL_EVENTS.filter((event) =>
   WEEK_DATES.has(event.date),
 );
 

@@ -385,9 +385,17 @@ function onClick(clickEvent) {
       return;
     }
 
-    state.mine = state.mine.includes(id)
-      ? state.mine.filter((saved) => saved !== id)
-      : [...state.mine, id];
+    if (state.mine.includes(id)) {
+      state.mine = state.mine.filter((saved) => saved !== id);
+    } else {
+      const event = EVENTS.find((item) => item.id === id);
+
+      if (!event || isFull(event)) {
+        return;
+      }
+
+      state.mine = [...state.mine, id];
+    }
 
     saveMine();
 
