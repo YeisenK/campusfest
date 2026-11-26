@@ -36,6 +36,7 @@ test('[BUG-2] La búsqueda ignora acentos y mayúsculas', () => {
   const brazo = event({ title: 'Brazo robótico con Arduino', categoryLabel: 'Robótica' });
   assert.equal(matchesSearch(brazo, 'robotica'), true, '"robotica" debe encontrar "Robótica"');
   assert.equal(matchesSearch(brazo, 'ROBÓTICO'), true, '"ROBÓTICO" debe encontrar "robótico"');
+  assert.equal(matchesSearch(brazo, 'ajedrez'), false, '"ajedrez" no debe coincidir');
 });
 
 test('[BUG-3] La fecha corta muestra el mes correcto', () => {
@@ -55,6 +56,7 @@ test('[BUG-5] "1 lugar" en singular', () => {
 
 test('[BUG-6] Un evento que ya pasó dice "Finalizado"', () => {
   assert.equal(countdownLabel('2026-11-23', '2026-11-26'), 'Finalizado');
+  assert.equal(countdownLabel('2026-11-26', '2026-11-26'), 'Hoy');
   assert.equal(countdownLabel('2026-11-30', '2026-11-26'), 'Faltan 4 días');
 });
 
