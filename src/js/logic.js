@@ -1,15 +1,25 @@
+
 // Lógica de CampusFest: funciones puras, sin DOM.
 // La app (app.js) y las pruebas (tests/) usan estas mismas funciones.
 
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// Convierte una fecha YYYY-MM-DD a UTC para evitar problemas
-// de zona horaria y cambios de horario de verano.
+// ---------- Utilidades ----------
+
+// Convierte una fecha YYYY-MM-DD a UTC.
+// Valida tanto el formato como la existencia real de la fecha.
 function toDate(dateStr) {
+  if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    throw new RangeError(`Fecha inválida: ${dateStr}`);
+  }
+
   const date = new Date(`${dateStr}T00:00:00.000Z`);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== dateStr
+  ) {
     throw new RangeError(`Fecha inválida: ${dateStr}`);
   }
 
@@ -36,6 +46,7 @@ export function spotsLabel(event) {
   }
 
   const spots = spotsLeft(event);
+
   return `${spots} ${spots === 1 ? 'lugar' : 'lugares'}`;
 }
 
@@ -61,7 +72,7 @@ export function daysUntil(dateStr, todayStr) {
   const eventDate = toDate(dateStr);
   const today = toDate(todayStr);
 
-  return Math.round((eventDate - today) / MS_PER_DAY);
+  return (eventDate.getTime() - today.getTime()) / MS_PER_DAY;
 }
 
 export function countdownLabel(dateStr, todayStr) {
@@ -88,7 +99,7 @@ export function countdownLabel(dateStr, todayStr) {
 
 export function sortByDate(events) {
   return [...events].sort((a, b) => {
-    return toDate(a.date) - toDate(b.date);
+    return toDate(a.date).getTime() - toDate(b.date).getTime();
   });
 }
 
@@ -136,7 +147,7 @@ export function filterEvents(
       return false;
     }
 
-    if (query && !matchesSearch(event, query)) {
+    if (!matchesSearch(event, query)) {
       return false;
     }
 
