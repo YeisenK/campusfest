@@ -1,151 +1,164 @@
-// Lógica de CampusFest: funciones puras, sin DOM.
-// La app (app.js) y las pruebas (tests/) usan estas mismas funciones.
 
-const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// Pruebas de regresión de CampusFest.
+// Ejecuta las pruebas contra las funciones reales de src/js/logic.js.
 
-// Convierte YYYY-MM-DD a UTC para evitar problemas de zona horaria.
-function toDate(dateStr) {
-  const date = new Date(`${dateStr}T00:00:00.000Z`);
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
-  if (Number.isNaN(date.getTime())) {
-    throw new RangeError(`Fecha inválida: ${dateStr}`);
-  }
+import {
+  countdownLabel,
+  formatPrice,
+  formatShortDate,
+  isFull,
+  matchesSearch,
+  sortByDate,
+  spotsLabel,
+  spotsLeft,
+} from '../src/js/logic.js';
 
-  return date;
-}
+const event = (overrides = {}) => ({
+  id: 'x',
+  title: 'Evento',
+  venue: 'Aula',
+  categoryLabel: 'Feria',
+  date: '2026-11-26',
+  capacity: 10,
+  registered: 0,
+  price: 0,
+  ...overrides,
+});
 
-function pad(number) {
-  return String(number).padStart(2, '0');
-}
+// BUG-0: Los cupos nunca son negativos.
+test('[BUG-0] Los cupos nunca son negativos y un evento sobrevendido está lleno', () => {
+  const sobrevendido = event({ capacity: 30, registered: 33 });
 
-// Normaliza texto para ignorar mayúsculas y acentos.
-function normalizeText(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
+  assert.equal(spotsLeft(sobrevendido), 0);
+  assert.equal(isFull(sobrevendido), true);
+});
 
-// ---------- Cupos ----------
+// BUG-1: Orden cronológico.
+test('[BUG-1] Los eventos se ordenan por fecha real', () => {
+  const ordenados = sortByDate([
+    event({ id: 'posada', date: '2026-12-02' }),
+    event({ id: 'hackathon', date: '2026-11-23' }),
+    event({ id: 'feria', date: '2026-11-27' }),
+  ]);
 
-export function spotsLeft(event) {
-  return Math.max(0, event.capacity - event.registered);
-}
+  assert.deepEqual(
+    ordenados.map((e) => e.id),
+    ['hackathon', 'feria', 'posada'],
+  );
+});
 
-export function isFull(event) {
-  return spotsLeft(event) === 0;
-}
-
-export function spotsLabel(event) {
-  if (isFull(event)) {
-    return 'Cupo lleno';
-  }
-
-  const spots = spotsLeft(event);
-
-  return `${spots} ${spots === 1 ? 'lugar' : 'lugares'}`;
-}
-
-// ---------- Precio ----------
-
-export function formatPrice(price) {
-  if (Number(price) === 0) {
-    return 'Gratis';
-  }
-
-  return `$${price}`;
-}
-
-// ---------- Fechas ----------
-
-export function formatShortDate(dateStr) {
-  const date = toDate(dateStr);
-
-  return `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}`;
-}
-
-export function weekdayName(dateStr) {
-  return WEEKDAYS[toDate(dateStr).getUTCDay()];
-}
-
-export function daysUntil(dateStr, todayStr) {
-  const eventDate = toDate(dateStr);
-  const today = toDate(todayStr);
-
-  return Math.round((eventDate - today) / MS_PER_DAY);
-}
-
-export function countdownLabel(dateStr, todayStr) {
-  const days = daysUntil(dateStr, todayStr);
-
-  if (days < 0) {
-    return 'Finalizado';
-  }
-
-  if (days === 0) {
-    return 'Hoy';
-  }
-
-  if (days === 1) {
-    return 'Mañana';
-  }
-
-  return `Faltan ${days} días`;
-}
-
-export function sortByDate(events) {
-  return [...events].sort((a, b) => {
-    return toDate(a.date) - toDate(b.date);
+// BUG-2: Búsqueda sin distinción de acentos ni mayúsculas.
+test('[BUG-2] La búsqueda ignora acentos y mayúsculas', () => {
+  const brazo = event({
+    title: 'Brazo robótico con Arduino',
+    categoryLabel: 'Robótica',
   });
-}
 
-// ---------- Búsqueda y filtros ----------
+  assert.equal(matchesSearch(brazo, 'robotica'), true);
+  assert.equal(matchesSearch(brazo, 'ROBÓTICO'), true);
+});
 
-export function matchesSearch(event, query) {
-  const normalizedQuery = normalizeText(query);
+// BUG-3: Formato de fecha.
+test('[BUG-3] La fecha corta muestra el mes correcto', () => {
+  assert.equal(formatShortDate('2026-11-24'), '24/11');
+  assert.equal(formatShortDate('2026-12-02'), '02/12');
+});
 
-  if (!normalizedQuery) {
-    return true;
-  }
+// BUG-4: Precio gratuito.
+test('[BUG-4] Un evento sin costo dice Gratis', () => {
+  assert.equal(formatPrice(0), 'Gratis');
+  assert.equal(formatPrice(50), '$50');
+});
 
-  const text = normalizeText([
-    event.title,
-    event.venue,
-    event.categoryLabel,
-  ].filter(Boolean).join(' '));
+// BUG-5: Singular y plural de cupos.
+test('[BUG-5] La etiqueta de cupos utiliza singular y plural correctamente', () => {
+  assert.equal(
+    spotsLabel(event({ capacity: 120, registered: 119 })),
+    '1 lugar',
+  );
 
-  return text.includes(normalizedQuery);
-}
+  assert.equal(
+    spotsLabel(event({ capacity: 20, registered: 12 })),
+    '8 lugares',
+  );
+});
 
-export function filterEvents(
-  events,
-  {
-    query = '',
-    category = 'todas',
-    day = null,
-    onlyMine = false,
-    mine = [],
-  } = {},
-) {
-  return events.filter((event) => {
-    if (category !== 'todas' && event.category !== category) {
-      return false;
-    }
+// BUG-6: Eventos finalizados.
+test('[BUG-6] Un evento que ya pasó dice Finalizado', () => {
+  assert.equal(
+    countdownLabel('2026-11-23', '2026-11-26'),
+    'Finalizado',
+  );
 
-    if (day && event.date !== day) {
-      return false;
-    }
+  assert.equal(
+    countdownLabel('2026-11-30', '2026-11-26'),
+    'Faltan 4 días',
+  );
+});
 
-    if (onlyMine && !mine.includes(event.id)) {
-      return false;
-    }
+// BUG-7: Contraste WCAG.
+test('[BUG-7] El texto secundario tiene contraste mínimo de 4.5:1', () => {
+  const css = readFileSync(
+    new URL('../src/css/styles.css', import.meta.url),
+    'utf8',
+  );
 
-    if (query && !matchesSearch(event, query)) {
-      return false;
-    }
+  const muted = css.match(/--text-muted:\s*(#[0-9a-fA-F]{6})/)?.[1];
+  const surface = css.match(/--surface:\s*(#[0-9a-fA-F]{6})/)?.[1];
 
-    return true;
-  });
+  assert.ok(muted && surface, 'No se encontraron los colores necesarios');
+
+  const ratio = contrast(muted, surface);
+
+  assert.ok(
+    ratio >= 4.5,
+    `El contraste es ${ratio.toFixed(2)}:1; necesita al menos 4.5:1`,
+  );
+});
+
+// BUG-8: Fechas inexistentes.
+test('[BUG-8] Las fechas imposibles deben rechazarse', () => {
+  assert.throws(
+    () => formatShortDate('2026-02-30'),
+    RangeError,
+  );
+
+  assert.throws(
+    () => formatShortDate('2026-02-29'),
+    RangeError,
+  );
+
+  assert.throws(
+    () => formatShortDate('2026-13-01'),
+    RangeError,
+  );
+
+  // Año bisiesto válido.
+  assert.equal(formatShortDate('2024-02-29'), '29/02');
+});
+
+// Calcula el contraste WCAG entre dos colores hexadecimales.
+function contrast(a, b) {
+  const luminance = (hex) => {
+    const channels = [1, 3, 5].map((i) =>
+      parseInt(hex.slice(i, i + 2), 16) / 255,
+    );
+
+    const [r, g, b2] = channels.map((c) =>
+      c <= 0.04045
+        ? c / 12.92
+        : ((c + 0.055) / 1.055) ** 2.4,
+    );
+
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+  };
+
+  const [light, dark] = [luminance(a), luminance(b)]
+    .sort((x, y) => y - x);
+
+  return (light + 0.05) / (dark + 0.05);
 }
